@@ -14,7 +14,17 @@ https://www.sqlitetutorial.net/sqlite-sample-database/
 
 # Tools
 
-## Assistants Playground
+## Scenario API
+
+### IP Adapters in Game Design
+
+https://help.scenario.com/integrating-ip-adapters-for-game-development
+
+### LoRA Character Bases in Game Design
+
+https://help.scenario.com/integrating-lora-character-bases-in-game-design
+
+## Open AI Assistants Playground
 
 https://platform.openai.com/assistants
 
