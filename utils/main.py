@@ -3,18 +3,21 @@ import threading
 import openai
 import os
 from dotenv import load_dotenv
+import logging
 
 app = Flask(__name__)
 
 # Load environment variables from .env file
 load_dotenv()
 
-
 # Replace 'openai-api-key' with your actual OpenAI API key
 openai.api_key = os.getenv('OPENAI_API_KEY')
 
 # Store the assistant instances in a dictionary, where the key is the (user_id, thread_id) tuple
 assistants = {}
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
 
 
 # Function to create the first assistant
@@ -72,48 +75,66 @@ def get_assistant(user_id, assistant_type):
     return assistants[(user_id, thread_id, assistant_type)]
 
 
-@app.route('/roles_assist_response', methods=['POST'])
-def roles_assist_response():
-    data = request.json
-    user_id = data.get('user_id')
-    user_message = data.get('user_message')
+def update_assistant(user_id, assistant_type, user_message):
+    # Get the current thread ID
+    thread_id = threading.get_ident()
 
-    # Get the first assistant instance for the current user and thread
-    assistant = get_assistant(user_id, "first")
+    # Get the assistant instance for the current user, thread, and type
+    assistant = get_assistant(user_id, assistant_type)
 
     # Add user message to the assistant's conversation
     assistant['messages'].append({"role": "user", "content": user_message})
 
-    # Get the first assistant's response
-    response = openai.beta.assistants.create(
-        model="gpt-3.5-turbo",
-        messages=assistant['messages'],
-    )
+    # Store the updated assistant instance in the dictionary
+    assistants[(user_id, thread_id, assistant_type)] = assistant
 
-    # Return the first assistant's response
-    return jsonify({'assistant_response': response['choices'][0]['message']['content']})
+
+@app.route('/roles_assist_response', methods=['POST'])
+def roles_assist_response():
+    try:
+        data = request.json
+        user_id = data['user_id']
+        user_message = data['user_message']
+
+        # Update the first assistant instance for the current user and thread with the new user message
+        update_assistant(user_id, "first", user_message)
+
+        # Get the first assistant's response
+        response = openai.beta.assistants.create(
+            model="gpt-3.5-turbo",
+            messages=assistants[(user_id, threading.get_ident(), "first")]['messages'],
+        )
+
+        # Return the first assistant's response
+        return jsonify({'assistant_response': response['choices'][0]['message']['content']})
+
+    except Exception as e:
+        logging.error(f"Error processing roles_assist_response: {e}")
+        return jsonify({'error': 'Internal Server Error'}), 500
 
 
 @app.route('/posts_assist_response', methods=['POST'])
 def posts_assist_response():
-    data = request.json
-    user_id = data.get('user_id')
-    user_message = data.get('user_message')
+    try:
+        data = request.json
+        user_id = data['user_id']
+        user_message = data['user_message']
 
-    # Get the second assistant instance for the current user and thread
-    assistant = get_assistant(user_id, "second")
+        # Update the second assistant instance for the current user and thread with the new user message
+        update_assistant(user_id, "second", user_message)
 
-    # Add user message to the assistant's conversation
-    assistant['messages'].append({"role": "user", "content": user_message})
+        # Get the second assistant's response
+        response = openai.beta.assistants.create(
+            model="gpt-3.5-turbo",
+            messages=assistants[(user_id, threading.get_ident(), "second")]['messages'],
+        )
 
-    # Get the second assistant's response
-    response = openai.beta.assistants.create(
-        model="gpt-3.5-turbo",
-        messages=assistant['messages'],
-    )
+        # Return the second assistant's response
+        return jsonify({'assistant_response': response['choices'][0]['message']['content']})
 
-    # Return the second assistant's response
-    return jsonify({'assistant_response': response['choices'][0]['message']['content']})
+    except Exception as e:
+        logging.error(f"Error processing posts_assist_response: {e}")
+        return jsonify({'error': 'Internal Server Error'}), 500
 
 
 if __name__ == '__main__':
